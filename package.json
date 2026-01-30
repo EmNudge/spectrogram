@@ -1,0 +1,44 @@
+{
+  "name": "@emnudge/spectrogram",
+  "type": "module",
+  "version": "0.0.1",
+  "description": "FFT-agnostic spectrogram generation and rendering library",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "demo": "pnpm --filter demo dev",
+    "demo:build": "pnpm --filter demo build",
+    "bench": "vitest bench",
+    "lint": "oxlint src bench",
+    "format": "oxfmt --write src bench",
+    "format:check": "oxfmt src bench",
+    "knip": "knip",
+    "check": "pnpm lint && pnpm format:check && pnpm knip"
+  },
+  "devDependencies": {
+    "knip": "^5.82.1",
+    "vitest": "^3.0.5",
+    "oxfmt": "^0.27.0",
+    "oxlint": "^1.42.0",
+    "tsdown": "^0.18.1",
+    "typescript": "^5.9.3"
+  },
+  "keywords": [
+    "spectrogram",
+    "audio",
+    "fft",
+    "visualization",
+    "dsp"
+  ],
+  "license": "MIT"
+}
