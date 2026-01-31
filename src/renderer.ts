@@ -203,18 +203,18 @@ function remapSpectrumWithDownsample(
 
 /**
  * Render spectrogram to a canvas element
- * OPTIMIZED: Uses color LUT, buffer reuse, subarray instead of slice
  */
 export function renderSpectrogram(options: RenderOptions): void {
   const {
     canvas,
     spectrogram,
-    freqScale = "log",
-    minFreq = 50,
+    freqScale = "mel",
+    minFreq = 20,
     maxFreq = 8000,
     frequencyGain = 0,
+    range = 80,
     downsampleMode = "max",
-    interpolation = "linear",
+    interpolation = "cubic",
   } = options;
   const colorScale: ColorScale = options.colorScale ?? "magma";
 
@@ -226,8 +226,9 @@ export function renderSpectrogram(options: RenderOptions): void {
   const { data, numFrames, numBins, sampleRate } = spectrogram;
   const nyquist = sampleRate / 2;
 
-  // Determine display height - use all available frequency bins
-  const displayBins = numBins;
+  // Render at spectrogram's native resolution - CSS handles stretching
+  const width = numFrames;
+  const height = numBins;
 
   // Effective frequency range
   const effectiveMinFreq = Math.max(minFreq, 1);
@@ -238,65 +239,57 @@ export function renderSpectrogram(options: RenderOptions): void {
     numBins,
     sampleRate,
     freqScale,
-    displayBins,
+    height,
     effectiveMinFreq,
     effectiveMaxFreq,
   );
 
-  // Precompute frequency gain for each display bin
-  const freqGainFactors = new Float32Array(displayBins);
-  for (let bin = 0; bin < displayBins; bin++) {
-    const hz = getFrequencyAtBin(bin, displayBins, effectiveMinFreq, effectiveMaxFreq, freqScale);
+  // Precompute frequency gain for each row (convert dB boost to normalized units)
+  const freqGainFactors = new Float32Array(height);
+  for (let bin = 0; bin < height; bin++) {
+    const hz = getFrequencyAtBin(bin, height, effectiveMinFreq, effectiveMaxFreq, freqScale);
     const dbBoost = calculateFrequencyGain(hz, frequencyGain);
-    freqGainFactors[bin] = dbBoost / 40;
+    freqGainFactors[bin] = dbBoost / range;
   }
 
-  // Resize canvas to fit spectrogram
-  canvas.width = numFrames;
-  canvas.height = displayBins;
+  // Set canvas to native spectrogram dimensions
+  canvas.width = width;
+  canvas.height = height;
 
-  const imageData = ctx.createImageData(numFrames, displayBins);
+  const imageData = ctx.createImageData(width, height);
   const pixels = imageData.data;
 
   // OPTIMIZATION: Use color lookup table
   const colorLUT = getColorLUT(colorScale);
   const lutMax = COLOR_LUT_SIZE - 1;
 
-  // OPTIMIZATION: Pre-allocate reusable buffer
-  const displayBuffer = new Float32Array(displayBins);
+  // Pre-allocate buffer for spectrum remapping
+  const displayBuffer = new Float32Array(height);
 
   for (let frame = 0; frame < numFrames; frame++) {
     const frameOffset = frame * numBins;
-    // OPTIMIZATION: Use subarray instead of slice
     const frameSpectrum = data.subarray(frameOffset, frameOffset + numBins);
 
-    // OPTIMIZATION: Reuse display buffer
-    remapSpectrumWithDownsample(
-      frameSpectrum,
-      freqMapping,
-      displayBins,
-      downsampleMode,
-      interpolation,
-      displayBuffer,
-    );
+    // Remap spectrum with frequency scale
+    remapSpectrumWithDownsample(frameSpectrum, freqMapping, height, downsampleMode, interpolation, displayBuffer);
 
-    for (let bin = 0; bin < displayBins; bin++) {
+    // Write pixels for this column
+    for (let bin = 0; bin < height; bin++) {
       let value = displayBuffer[bin] + freqGainFactors[bin];
+
+      // Clamp
       if (value < 0) value = 0;
       else if (value > 1) value = 1;
 
-      // OPTIMIZATION: Use LUT
+      // Map display Y to frequency bin (invert: low frequencies at bottom)
+      const y = height - 1 - bin;
+
       const lutIdx = ((value * lutMax + 0.5) | 0) * 3;
-      const r = colorLUT[lutIdx];
-      const g = colorLUT[lutIdx + 1];
-      const b = colorLUT[lutIdx + 2];
+      const pixelIndex = (y * width + frame) * 4;
 
-      const y = displayBins - 1 - bin;
-      const pixelIndex = (y * numFrames + frame) * 4;
-
-      pixels[pixelIndex] = r;
-      pixels[pixelIndex + 1] = g;
-      pixels[pixelIndex + 2] = b;
+      pixels[pixelIndex] = colorLUT[lutIdx];
+      pixels[pixelIndex + 1] = colorLUT[lutIdx + 1];
+      pixels[pixelIndex + 2] = colorLUT[lutIdx + 2];
       pixels[pixelIndex + 3] = 255;
     }
   }
@@ -320,17 +313,24 @@ export interface RenderResult {
  * @returns ImageData containing the rendered spectrogram (or RenderResult if returnTiming is true)
  */
 export function renderToImageData(
-  options: Omit<RenderOptions, "canvas"> & { returnTiming?: boolean },
+  options: Omit<RenderOptions, "canvas"> & {
+    returnTiming?: boolean;
+    outputWidth?: number;
+    outputHeight?: number;
+  },
 ): ImageData | RenderResult {
   const {
     spectrogram,
-    freqScale = "log",
-    minFreq = 50,
+    freqScale = "mel",
+    minFreq = 20,
     maxFreq = 8000,
     frequencyGain = 0,
+    range = 80,
     downsampleMode = "max",
-    interpolation = "linear",
+    interpolation = "cubic",
     returnTiming = false,
+    outputWidth,
+    outputHeight,
   } = options;
   const colorScale: ColorScale = options.colorScale ?? "magma";
 
@@ -357,17 +357,14 @@ export function renderToImageData(
     effectiveMaxFreq,
   );
 
-  // Precompute frequency gain for each display bin
+  // Precompute frequency gain for each display bin (convert dB boost to normalized units)
   const freqGainFactors = new Float32Array(displayBins);
   for (let bin = 0; bin < displayBins; bin++) {
     const hz = getFrequencyAtBin(bin, displayBins, effectiveMinFreq, effectiveMaxFreq, freqScale);
     const dbBoost = calculateFrequencyGain(hz, frequencyGain);
-    freqGainFactors[bin] = dbBoost / 40;
+    freqGainFactors[bin] = dbBoost / range;
   }
   const frequencyMappingTime = elapsed(freqMapStart);
-
-  const imageData = new ImageData(numFrames, displayBins);
-  const pixels = imageData.data;
 
   // OPTIMIZATION: Use color lookup table instead of function calls
   const colorLUT = getColorLUT(colorScale);
@@ -378,6 +375,9 @@ export function renderToImageData(
 
   let remappingTime = 0;
   let colorMappingTime = 0;
+
+  // First pass: create the raw spectrogram values (0-1 normalized)
+  const rawValues = new Float32Array(numFrames * displayBins);
 
   for (let frame = 0; frame < numFrames; frame++) {
     const frameOffset = frame * numBins;
@@ -397,30 +397,49 @@ export function renderToImageData(
     );
     remappingTime += elapsed(remapStart);
 
-    const colorStart = now();
     for (let bin = 0; bin < displayBins; bin++) {
       let value = displayBuffer[bin] + freqGainFactors[bin];
       // Fast clamp
       if (value < 0) value = 0;
       else if (value > 1) value = 1;
 
-      // OPTIMIZATION: Use LUT instead of function call
-      const lutIdx = ((value * lutMax + 0.5) | 0) * 3; // Fast round and multiply
-      const r = colorLUT[lutIdx];
-      const g = colorLUT[lutIdx + 1];
-      const b = colorLUT[lutIdx + 2];
+      rawValues[bin * numFrames + frame] = value;
+    }
+  }
 
-      // High frequencies at top, low at bottom
-      const y = displayBins - 1 - bin;
-      const pixelIndex = (y * numFrames + frame) * 4;
+  // Determine output dimensions
+  const outWidth = outputWidth ?? numFrames;
+  const outHeight = outputHeight ?? displayBins;
 
-      pixels[pixelIndex] = r;
-      pixels[pixelIndex + 1] = g;
-      pixels[pixelIndex + 2] = b;
+  const imageData = new ImageData(outWidth, outHeight);
+  const pixels = imageData.data;
+
+  const colorStart = now();
+
+  // Second pass: render with optional upscaling
+  // Use nearest-neighbor to preserve texture (not bilinear which blurs)
+  const scaleX = numFrames / outWidth;
+  const scaleY = displayBins / outHeight;
+
+  for (let y = 0; y < outHeight; y++) {
+    for (let x = 0; x < outWidth; x++) {
+      // Map output coordinates to raw data coordinates (nearest neighbor)
+      const srcX = Math.min(Math.floor(x * scaleX), numFrames - 1);
+      const srcBin = Math.min(Math.floor((outHeight - 1 - y) * scaleY), displayBins - 1);
+
+      const value = rawValues[srcBin * numFrames + srcX];
+
+      const lutIdx = ((Math.max(0, Math.min(1, value)) * lutMax + 0.5) | 0) * 3;
+      const pixelIndex = (y * outWidth + x) * 4;
+
+      pixels[pixelIndex] = colorLUT[lutIdx];
+      pixels[pixelIndex + 1] = colorLUT[lutIdx + 1];
+      pixels[pixelIndex + 2] = colorLUT[lutIdx + 2];
       pixels[pixelIndex + 3] = 255;
     }
-    colorMappingTime += elapsed(colorStart);
   }
+
+  colorMappingTime = elapsed(colorStart);
 
   const totalTime = elapsed(totalStart);
 

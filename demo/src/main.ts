@@ -129,9 +129,9 @@ const controlDefs: ControlDef[] = [
     { value: "erb", label: "ERB" },
   ], defaultValue: "mel", onChange: "rerender" },
 
-  { type: "range", id: "minFreq", label: "Min Freq (Hz)", min: 0, max: 8000, step: 50, defaultValue: 0, onChange: "rerender" },
+  { type: "range", id: "minFreq", label: "Min Freq (Hz)", min: 0, max: 8000, step: 10, defaultValue: 0, onChange: "rerender" },
 
-  { type: "range", id: "maxFreq", label: "Max Freq (Hz)", min: 1000, max: 22050, step: 50, defaultValue: 22050, onChange: "rerender" },
+  { type: "range", id: "maxFreq", label: "Max Freq (Hz)", min: 1000, max: 22050, step: 10, defaultValue: 22050, onChange: "rerender" },
 
   { type: "range", id: "freqGain", label: "Freq Gain (dB/dec)", min: 0, max: 20, step: 1, defaultValue: 0, onChange: "rerender" },
 
@@ -140,11 +140,6 @@ const controlDefs: ControlDef[] = [
     { value: "average", label: "Average" },
     { value: "nearest", label: "Nearest (fast)" },
   ], defaultValue: "max", onChange: "rerender" },
-
-  { type: "select", id: "renderMode", label: "Render Mode", options: [
-    { value: "smooth", label: "Smooth" },
-    { value: "pixelated", label: "Pixelated" },
-  ], defaultValue: "smooth", onChange: "custom" },
 
   { type: "select", id: "interpolation", label: "Interpolation", options: [
     { value: "nearest", label: "Nearest" },
@@ -236,11 +231,6 @@ function buildControls() {
       } else if (def.onChange === "rerender") {
         select.addEventListener("change", () => {
           rerender();
-          pushUndoState();
-        });
-      } else if (def.onChange === "custom" && def.id === "renderMode") {
-        select.addEventListener("change", () => {
-          canvas.style.imageRendering = select.value === "pixelated" ? "pixelated" : "auto";
           pushUndoState();
         });
       }
@@ -697,6 +687,7 @@ function getRenderOptions() {
 
 function rerender() {
   if (!currentSpectrogram) return;
+
   renderSpectrogram({
     canvas,
     spectrogram: currentSpectrogram,
@@ -986,6 +977,12 @@ function onResizeEnd() {
 }
 
 window.addEventListener("resize", updateSizeIndicator);
+
+// ResizeObserver to update size indicator
+const resizeObserver = new ResizeObserver(() => {
+  updateSizeIndicator();
+});
+resizeObserver.observe(canvasWrapper);
 
 // =============================================================================
 // Region Selection for Zoom

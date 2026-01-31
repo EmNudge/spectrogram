@@ -60,7 +60,7 @@ export interface SpectrogramOptions {
   windowType?: WindowType;
   /** Zero padding factor (1, 2, 4, etc.) */
   zeroPadding?: number;
-  /** Gain in dB (white point, default 0) */
+  /** Gain in dB (white point - signals at this level appear white, default -20 to match Audacity's visual appearance) */
   gain?: number;
   /** Dynamic range in dB (default 80) */
   range?: number;
@@ -124,10 +124,16 @@ export interface RenderOptions {
   maxFreq?: number;
   /** Frequency gain in dB/decade - boosts higher frequencies for visibility (default 0) */
   frequencyGain?: number;
+  /** Dynamic range in dB used during spectrogram generation (default 80, needed for frequency gain scaling) */
+  range?: number;
   /** How to combine bins when display is smaller than data (default "max") */
   downsampleMode?: DownsampleMode;
   /** Interpolation mode for frequency mapping (default "linear") */
   interpolation?: InterpolationMode;
+  /** Target output width in pixels (default: use spectrogram numFrames) */
+  outputWidth?: number;
+  /** Target output height in pixels (default: use spectrogram numBins) */
+  outputHeight?: number;
 }
 
 /**

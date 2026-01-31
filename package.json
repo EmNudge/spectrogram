@@ -23,10 +23,13 @@
     "format": "oxfmt --write src bench",
     "format:check": "oxfmt src bench",
     "knip": "knip",
-    "check": "pnpm lint && pnpm format:check && pnpm knip"
+    "check": "pnpm lint && pnpm format:check && pnpm knip",
+    "screenshot": "tsx scripts/screenshot.ts",
+    "analyze": "tsx scripts/image-analysis.ts"
   },
   "devDependencies": {
     "knip": "^5.82.1",
+    "tsx": "^4.19.0",
     "vitest": "^3.0.5",
     "oxfmt": "^0.27.0",
     "oxlint": "^1.42.0",

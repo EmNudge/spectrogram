@@ -411,7 +411,7 @@ export function generateSpectrogram(
     sampleRate,
     fftContext,
     zeroPadding = 1,
-    gain = 0,
+    gain = -20,
     range = 80,
     algorithm = "standard",
     targetWidth,

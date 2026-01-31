@@ -97,16 +97,16 @@ export function clearWindowCache(): void {
 
 /**
  * Window functions for spectral analysis
+ * Uses periodic window formulation (N instead of N-1) to match Audacity's STFT implementation.
+ * Periodic windows are preferred for STFT as they provide better frequency estimation.
  */
 export const WINDOW_FUNCTIONS: Record<WindowType, WindowFunction> = {
-  hann: (i, N) => 0.5 * (1 - Math.cos((2 * Math.PI * i) / (N - 1))),
+  hann: (i, N) => 0.5 * (1 - Math.cos((2 * Math.PI * i) / N)),
 
-  hamming: (i, N) => 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / (N - 1)),
+  hamming: (i, N) => 0.54 - 0.46 * Math.cos((2 * Math.PI * i) / N),
 
   blackman: (i, N) =>
-    0.42 -
-    0.5 * Math.cos((2 * Math.PI * i) / (N - 1)) +
-    0.08 * Math.cos((4 * Math.PI * i) / (N - 1)),
+    0.42 - 0.5 * Math.cos((2 * Math.PI * i) / N) + 0.08 * Math.cos((4 * Math.PI * i) / N),
 
   blackmanHarris: (i, N) => {
     const a0 = 0.35875;
@@ -115,9 +115,9 @@ export const WINDOW_FUNCTIONS: Record<WindowType, WindowFunction> = {
     const a3 = 0.01168;
     return (
       a0 -
-      a1 * Math.cos((2 * Math.PI * i) / (N - 1)) +
-      a2 * Math.cos((4 * Math.PI * i) / (N - 1)) -
-      a3 * Math.cos((6 * Math.PI * i) / (N - 1))
+      a1 * Math.cos((2 * Math.PI * i) / N) +
+      a2 * Math.cos((4 * Math.PI * i) / N) -
+      a3 * Math.cos((6 * Math.PI * i) / N)
     );
   },
 
@@ -126,25 +126,25 @@ export const WINDOW_FUNCTIONS: Record<WindowType, WindowFunction> = {
 
 /**
  * Derivative window functions for reassignment algorithm
- * These are the derivatives d/di of the window functions
+ * These are the derivatives d/di of the window functions (periodic formulation)
  */
 export const WINDOW_DERIVATIVES: Record<WindowType, WindowFunction> = {
-  hann: (i, N) => (Math.PI / (N - 1)) * Math.sin((2 * Math.PI * i) / (N - 1)),
+  hann: (i, N) => (Math.PI / N) * Math.sin((2 * Math.PI * i) / N),
 
-  hamming: (i, N) => 0.46 * ((2 * Math.PI) / (N - 1)) * Math.sin((2 * Math.PI * i) / (N - 1)),
+  hamming: (i, N) => 0.46 * ((2 * Math.PI) / N) * Math.sin((2 * Math.PI * i) / N),
 
   blackman: (i, N) =>
-    0.5 * ((2 * Math.PI) / (N - 1)) * Math.sin((2 * Math.PI * i) / (N - 1)) -
-    0.08 * ((4 * Math.PI) / (N - 1)) * Math.sin((4 * Math.PI * i) / (N - 1)),
+    0.5 * ((2 * Math.PI) / N) * Math.sin((2 * Math.PI * i) / N) -
+    0.08 * ((4 * Math.PI) / N) * Math.sin((4 * Math.PI * i) / N),
 
   blackmanHarris: (i, N) => {
     const a1 = 0.48829;
     const a2 = 0.14128;
     const a3 = 0.01168;
     return (
-      a1 * ((2 * Math.PI) / (N - 1)) * Math.sin((2 * Math.PI * i) / (N - 1)) -
-      a2 * ((4 * Math.PI) / (N - 1)) * Math.sin((4 * Math.PI * i) / (N - 1)) +
-      a3 * ((6 * Math.PI) / (N - 1)) * Math.sin((6 * Math.PI * i) / (N - 1))
+      a1 * ((2 * Math.PI) / N) * Math.sin((2 * Math.PI * i) / N) -
+      a2 * ((4 * Math.PI) / N) * Math.sin((4 * Math.PI * i) / N) +
+      a3 * ((6 * Math.PI) / N) * Math.sin((6 * Math.PI * i) / N)
     );
   },
 
@@ -153,14 +153,14 @@ export const WINDOW_DERIVATIVES: Record<WindowType, WindowFunction> = {
 
 /**
  * Time-ramped window functions for reassignment algorithm
- * These are (i - N/2) * h(i), centered around the middle of the window
+ * These are (i - N/2) * h(i), centered around the middle of the window (periodic formulation)
  */
 export const WINDOW_TIME_RAMPED: Record<WindowType, WindowFunction> = {
-  hann: (i, N) => (i - (N - 1) / 2) * WINDOW_FUNCTIONS.hann(i, N),
-  hamming: (i, N) => (i - (N - 1) / 2) * WINDOW_FUNCTIONS.hamming(i, N),
-  blackman: (i, N) => (i - (N - 1) / 2) * WINDOW_FUNCTIONS.blackman(i, N),
-  blackmanHarris: (i, N) => (i - (N - 1) / 2) * WINDOW_FUNCTIONS.blackmanHarris(i, N),
-  rectangular: (i, N) => i - (N - 1) / 2,
+  hann: (i, N) => (i - N / 2) * WINDOW_FUNCTIONS.hann(i, N),
+  hamming: (i, N) => (i - N / 2) * WINDOW_FUNCTIONS.hamming(i, N),
+  blackman: (i, N) => (i - N / 2) * WINDOW_FUNCTIONS.blackman(i, N),
+  blackmanHarris: (i, N) => (i - N / 2) * WINDOW_FUNCTIONS.blackmanHarris(i, N),
+  rectangular: (i, N) => i - N / 2,
 };
 
 /**
