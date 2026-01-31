@@ -40,5 +40,6 @@
     "visualization",
     "dsp"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "pnpm@10.26.2"
 }
