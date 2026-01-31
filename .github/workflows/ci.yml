@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install
+
+      - name: Run lint
+        id: lint
+        run: pnpm lint
+        continue-on-error: true
+
+      - name: Run format check
+        id: format
+        run: pnpm format:check
+        continue-on-error: true
+
+      - name: Run knip
+        id: knip
+        run: pnpm knip
+        continue-on-error: true
+
+      - name: Check results
+        run: |
+          if [[ "${{ steps.lint.outcome }}" == "failure" ]]; then
+            echo "::error::Lint failed"
+            exit 1
+          fi
+          if [[ "${{ steps.format.outcome }}" == "failure" ]]; then
+            echo "::error::Format check failed"
+            exit 1
+          fi
+          if [[ "${{ steps.knip.outcome }}" == "failure" ]]; then
+            echo "::error::Knip check failed"
+            exit 1
+          fi
+
+  build:
+    name: Build Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install
+
+      - name: Build package
+        run: pnpm build
+
+  playground:
+    name: Build Playground
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install
+
+      - name: Build package
+        run: pnpm build
+
+      - name: Build playground
+        run: pnpm demo:build
+
+      - name: Upload playground artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: playground
+          path: demo/dist
+
+  deploy-pages:
+    name: Deploy to Cloudflare Pages
+    runs-on: ubuntu-latest
+    needs: playground
+    permissions:
+      contents: read
+      deployments: write
+      pull-requests: write
+    steps:
+      - name: Download playground artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: playground
+          path: dist
+
+      - name: Deploy to Cloudflare Pages
+        id: deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=spectrogram --branch=${{ github.head_ref || github.ref_name }}
+
+      - name: Post deployment URL to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deploymentUrl = '${{ steps.deploy.outputs.deployment-url }}';
+            const sha = '${{ github.event.pull_request.head.sha }}'.slice(0, 7);
+            const body = `## Playground Preview\n\n| Commit | URL |\n|--------|-----|\n| \`${sha}\` | ${deploymentUrl} |`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number
+            });
+
+            const botComment = comments.find(c =>
+              c.user.type === 'Bot' && c.body.includes('## Playground Preview')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body
+              });
+            }
