@@ -21,22 +21,45 @@ export const COLOR_SCALES: Record<ColorScale, ColorScaleFunction> = {
   },
 
   magma: (t: number): RGB => {
+    // Match Audacity's default spectrogram colormap:
+    // Black -> Dark Blue -> Magenta -> Orange -> White
+    // Based on documented dB bands with gain=20, range=80:
+    // -100 to -80 dB: Black to Blue (t: 0.0 - 0.25)
+    // -80 to -60 dB: Blue to Magenta (t: 0.25 - 0.5)
+    // -60 to -40 dB: Magenta to Orange (t: 0.5 - 0.75)
+    // -40 to -20 dB: Orange to White (t: 0.75 - 1.0)
     if (t < 0.25) {
-      // Black to dark purple
+      // Black to dark blue
       const s = t / 0.25;
-      return [Math.floor(20 * s), 0, Math.floor(80 * s)];
+      return [
+        Math.floor(3 * s),
+        Math.floor(3 * s),
+        Math.floor(80 * s),
+      ];
     } else if (t < 0.5) {
-      // Dark purple to magenta/red
+      // Dark blue to magenta
       const s = (t - 0.25) / 0.25;
-      return [Math.floor(20 + 180 * s), 0, Math.floor(80 + 40 * s)];
+      return [
+        Math.floor(3 + 177 * s),
+        Math.floor(3 - 3 * s),
+        Math.floor(80 + 100 * s),
+      ];
     } else if (t < 0.75) {
       // Magenta to orange
       const s = (t - 0.5) / 0.25;
-      return [Math.floor(200 + 55 * s), Math.floor(100 * s), Math.floor(120 * (1 - s))];
+      return [
+        Math.floor(180 + 75 * s),
+        Math.floor(0 + 140 * s),
+        Math.floor(180 - 180 * s),
+      ];
     } else {
       // Orange to white
       const s = (t - 0.75) / 0.25;
-      return [255, Math.floor(100 + 155 * s), Math.floor(200 * s)];
+      return [
+        255,
+        Math.floor(140 + 115 * s),
+        Math.floor(0 + 255 * s),
+      ];
     }
   },
 
